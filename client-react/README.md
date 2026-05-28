@@ -1,79 +1,113 @@
-# Customer Management Frontend (React) ⚛️
+# Frontend README - Task Management UI
 
-A high-performance React application for managing customer registries, optimized for cloud deployments (Vercel/Render).
+This frontend is the React.js implementation for the Full Stack Developer .
 
-## 🌐 Live Deployment
-- **Frontend (Vercel):** [https://adit-demo.vercel.app/](https://adit-demo.vercel.app/)
-- **Backend (Render):** [https://adit-demo.onrender.com](https://adit-demo.onrender.com) *(Update with your URL)*
+##  Scope Coverage
 
----
+1. User Login and Signup: Implemented.
+2. Dashboard displaying all tasks: Implemented.
+3. Create task: Implemented.
+4. Edit task: Implemented.
+5. Delete task: Implemented.
+6. Mark task Completed or Pending: Implemented.
+7. Filter tasks by Completed, Pending, and All: Implemented.
+8. Responsive UI for desktop and mobile: Implemented.
 
-## 🛠 Features
+## Technical Expectations Coverage
 
-### 1. Cold Start Resilience 🛡️
-Specifically designed for free-tier hosting (Render). If the backend is "asleep," the frontend automatically enters a **Retry Cycle**:
-- **Interval:** 30 seconds per attempt.
-- **Max Retries:** 5 attempts.
-- **UI Feedback:** Uses `Toast.warn` to inform the user during the wake-up phase.
+1. Functional components and hooks: Implemented.
+2. Reusable folder structure and components: Implemented.
+3. State management with hooks and session module: Implemented.
+4. Form validation on auth and task forms: Implemented.
+5. Backend API integration: Implemented.
+6. Clean modular code: Implemented.
 
-### 2. Advanced Data Table
-- **Sticky Headers:** Always keep column titles in view during scrolling.
-- **Fixed Height:** A neat, consistent UI limited to 10-row visibility with internal scrolling.
-- **Server-side Logic:** Sorting, searching, and pagination are handled by the API to ensure scalability.
+## Tech Stack
 
----
+1. React 19
+2. Vite
+3. React Router
+4. Framer Motion
+5. Tailwind CSS utilities
 
-## 🛣 API Integration Snippets
+## Run Locally
 
-### **GET /customers (Fetch Logic)**
-Handles searching, multi-column sorting, and pagination metadata.
-```javascript
-const response = await fetch(`${API_URL}/customers?page=1&limit=10&sort=name&order=asc`);
-const { data, meta } = await response.json();
-```
-
-### **POST /customers (Creation)**
-Includes strict validation for name length, email patterns, and unique constraints.
-```javascript
-const res = await fetch(`${API_URL}/customers`, {
-  method: 'POST',
-  headers: { 'Content-Type': 'application/json' },
-  body: JSON.stringify(customerData)
-});
-```
-
-### **DELETE /customers/:id**
-Removes a record and broadcasts a Socket.io event to sync all open tabs.
-```javascript
-await fetch(`${API_URL}/customers/${id}`, { method: 'DELETE' });
-```
-
----
-
-## ⚙️ Build & Deployment Commands
-
-**Install Dependencies**
 ```bash
+cd client-react
 npm install
 ```
-**Production Build**
+
+Create [client-react/.env](.env):
+
+```env
+VITE_API_URL=http://localhost:5000
+```
+
+Run app:
+
+```bash
+npm run dev
+```
+
+Build production bundle:
+
 ```bash
 npm run build
 ```
-**Deploy to Vercel**
-```bash
-vercel --prod
+
+## Frontend Feature Details
+
+1. Auth pages support signup and login with validation.
+2. Session manager auto-refreshes access tokens.
+3. Dashboard supports task create, edit, delete, and status changes.
+4. Filters include all, pending, and completed views.
+5. Search and pagination are integrated with backend endpoints.
+6. Responsive layout supports mobile and desktop.
+
+## API Integration Summary
+
+1. POST /api/auth/signup
+2. POST /api/auth/login
+3. POST /api/auth/refresh
+4. POST /api/auth/logout
+5. GET /api/auth/me
+6. GET /api/tasks
+7. POST /api/tasks
+8. PUT /api/tasks/:id
+9. PATCH /api/tasks/:id/status
+10. DELETE /api/tasks/:id
+11. GET /api/tasks/summary
+
+## Folder Structure
+
+```text
+client-react/
+|-- src/
+|   |-- components/
+|   |-- hooks/
+|   |-- services/
+|   |-- App.jsx
+|   |-- App.css
+|   |-- index.css
+|   `-- main.jsx
+|-- package.json
+`-- README.md
 ```
 
----
+## Assumptions
 
-Developed by Rupesh KLR
+1. Backend is reachable through VITE_API_URL.
+2. Backend CORS includes the frontend origin.
+3. Browser allows secure cookies for deployed HTTPS environments.
+4. User authentication is required for task endpoints.
 
----
-### Why this polish is important:
-1.  **UX during Cold Starts:** Without the retry logic, users just see a red "Error" immediately when Render is asleep. Now, they get a 2.5-minute window (5 x 30s) where the app stays "alive" and tries to connect.
-2.  **Clear Documentation:** Your `README.md` now explains *why* the app might take a moment to load, which is great for anyone reviewing your portfolio or code.
-3.  **Error Handling:** The final `Toast.error("backend failed")` only triggers if the server is actually down, rather than just sleeping.
+## Live URLs
 
-How does the 30-second interval feel? If Render usually wakes up faster, we can reduce it to 15 or 20 seconds.
+1. Frontend: https://adit-demo-2026.vercel.app
+2. Backend: https://adit-demo-2026.onrender.com
+3. Swagger: https://adit-demo-2026.onrender.com/api-docs
+
+## Maintainer
+
+Rupesh KLR
 

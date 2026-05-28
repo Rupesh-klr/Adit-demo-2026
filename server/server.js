@@ -47,35 +47,30 @@ const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
 const http = require('http');
 const { Server } = require('socket.io');
-const swaggerJsDoc = require('swagger-jsdoc');
 const swaggerUi = require('swagger-ui-express');
+const { buildOpenApiSpec } = require('./config/openapi');
 
 const app = express();
 const server = http.createServer(app);
 const PORT = Number(process.env.PORT) || 5000;
-const ALLOWED_ORIGINS = (process.env.ALLOWED_ORIGIN || 'http://localhost:5173')
+const DEFAULT_ALLOWED_ORIGINS = ['http://localhost:5173', 'https://adit-demo-2026.vercel.app'];
+const ENV_ALLOWED_ORIGINS = (process.env.ALLOWED_ORIGIN || '')
   .split(',')
   .map(origin => origin.trim())
   .filter(Boolean);
+const ALLOWED_ORIGINS = Array.from(new Set([...DEFAULT_ALLOWED_ORIGINS, ...ENV_ALLOWED_ORIGINS]));
 const DB_TYPE = String(process.env.DB_TYPE || '1');
 const USE_MONGO = DB_TYPE === '1';
 const MONGO_URI = process.env.MONGO_URL_TALEEO_LMS || process.env.MONGO_URL || '';
+const PUBLIC_BASE_URL = process.env.PUBLIC_BASE_URL || 'https://adit-demo-2026.onrender.com';
 const JWT_SECRET = process.env.JWT_SECRET || 'development-access-secret';
 const REFRESH_TOKEN_SECRET = process.env.REFRESH_TOKEN_SECRET || 'development-refresh-secret';
 const ENABLE_GUEST_LOGIN = String(process.env.ENABLE_GUEST_LOGIN || 'false').toLowerCase() === 'true';
 const isProduction = process.env.NODE_ENV === 'production';
 
-const swaggerDocs = swaggerJsDoc({
-  definition: {
-    openapi: '3.0.0',
-    info: {
-      title: 'Task Management API',
-      version: '1.0.0',
-      description: 'Authentication and task management API',
-    },
-    servers: [{ url: `http://localhost:${PORT}` }],
-  },
-  apis: [__filename],
+const swaggerDocs = buildOpenApiSpec({
+  localPort: PORT,
+  publicBaseUrl: PUBLIC_BASE_URL,
 });
 
 const cookieOptions = {
