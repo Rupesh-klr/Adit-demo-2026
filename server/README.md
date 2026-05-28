@@ -3,8 +3,8 @@
 A robust Node.js backend designed for managing customer and employee registries. This server features real-time synchronization via Socket.io, automated backups, and built-in logging.
 
 ## 🌐 Live Endpoints
-- **Main API Service:** [https://arali-demo.vercel.app](https://arali-demo.vercel.app) *(Update this with your specific Render URL)*
-- **Interactive Documentation (Swagger):** [https://arali-demo.onrender.com/api-docs](https://arali-demo.onrender.com/api-docs)
+- **Main API Service:** [https://adit-demo.vercel.app](https://adit-demo.vercel.app) *(Update this with your specific Render URL)*
+- **Interactive Documentation (Swagger):** [https://adit-demo.onrender.com/api-docs](https://adit-demo.onrender.com/api-docs)
 
 ---
 
@@ -35,7 +35,7 @@ The server uses WebSockets to emit events whenever the database is modified:
 ### 4. Remote Log Viewer
 A built-in custom log viewer allows you to monitor server activity in real-time without SSH access.
 - **Route:** `/lastlog`
-- **lastlog :** [https://arali-demo.onrender.com/lastlog](https://arali-demo.onrender.com/lastlog)
+- **lastlog :** [https://adit-demo.onrender.com/lastlog](https://adit-demo.onrender.com/lastlog)
 
 
 ---
@@ -46,7 +46,7 @@ A built-in custom log viewer allows you to monitor server activity in real-time 
 
 1. **Clone and Install**
    ```bash
-   git clone https://github.com/Rupesh-klr/Arali-demo.git
+   git clone https://github.com/Rupesh-klr/Adit-demo-2026.git
    cd server
    npm install
    ```

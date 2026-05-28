@@ -3,8 +3,8 @@
 A high-performance React application for managing customer registries, optimized for cloud deployments (Vercel/Render).
 
 ## 🌐 Live Deployment
-- **Frontend (Vercel):** [https://arali-demo.vercel.app/](https://arali-demo.vercel.app/)
-- **Backend (Render):** [https://arali-demo.onrender.com](https://arali-demo.onrender.com) *(Update with your URL)*
+- **Frontend (Vercel):** [https://adit-demo.vercel.app/](https://adit-demo.vercel.app/)
+- **Backend (Render):** [https://adit-demo.onrender.com](https://adit-demo.onrender.com) *(Update with your URL)*
 
 ---
 

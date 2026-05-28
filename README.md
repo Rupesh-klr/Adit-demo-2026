@@ -1,4 +1,4 @@
-# Arali Customer Management System 👥
+# Adit Customer Management System 👥
 
 A modern Full-Stack Customer Management application featuring a real-time data table, advanced form validation, and automated backend logging. Built with React (Vite) and Node.js.
 
@@ -18,8 +18,8 @@ Follow these commands to get the entire project running on your local machine.
 
 ### 1. Clone the Repository
 ```bash
-git clone https://github.com/Rupesh-klr/Arali-demo.git
-cd Arali-demo
+git clone https://github.com/Rupesh-klr/Adit-demo-2026.git
+cd Adit-demo-2026
 ```
 
 ### 2. Setup Backend (Server)
@@ -49,18 +49,18 @@ npm run dev
 For specific details on how the logic works, choose a module below:
 
 - **View Backend Details:** [server/README.md](./server/README.md) — Includes API Logic, Swagger setup, and Logging details.
-- **View More:** [server-doc](https://github.com/Rupesh-klr/Arali-demo/blob/main/server/README.md) — to know more.
+- **View More:** [server-doc](https://github.com/Rupesh-klr/Adit-demo-2026/blob/main/server/README.md) — to know more.
 - **View Frontend Details:** [client-react/README.md](./client-react/README.md) — Includes Form validation, Pagination logic, and Retry strategies.
-- **View More Details:** [client-react-doc](https://github.com/Rupesh-klr/Arali-demo/blob/main/client-react/README.md) — to know more.
+- **View More Details:** [client-react-doc](https://github.com/Rupesh-klr/Adit-demo-2026/blob/main/client-react/README.md) — to know more.
 
 ---
 
 ## 🌐 Live Environments
 | Component | Status      | URL                                   |
 |-----------|-------------|---------------------------------------|
-| Frontend  | 🚀 Production | https://arali-demo.vercel.app/        |
-| Backend   | 🟢 Live      | https://arali-demo.onrender.com       |
-| API Docs  | 📖 Interactive| https://arali-demo.onrender.com/api-docs |
+| Frontend  | 🚀 Production | https://adit-demo.vercel.app/        |
+| Backend   | 🟢 Live      | https://adit-demo.onrender.com       |
+| API Docs  | 📖 Interactive| https://adit-demo.onrender.com/api-docs |
 
 ---
 
