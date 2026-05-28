@@ -1,2 +1,7 @@
-ALLOWED_ORIGIN=http://localhost:5173,https://yourdomain.com,http://localhost:5174,http://localhost:3000,http://localhost:3001,http://localhost:3002,http://localhost:3003,http://localhost:3004,http://localhost:3005,http://localhost:3006,http://localhost:3007,http://localhost:3008,http://localhost:3009,https://adit-demo.vercel.app
-PORT=5001
+PORT=5000
+ALLOWED_ORIGIN=http://localhost:5173,https://yourdomain.com
+DB_TYPE=1
+ENABLE_GUEST_LOGIN=true
+JWT_SECRET=replace-with-a-long-random-secret
+REFRESH_TOKEN_SECRET=replace-with-a-different-long-random-secret
+MONGO_URL=mongodb+srv://<user>:<password>@<cluster>/<database>?retryWrites=true&w=majority

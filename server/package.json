@@ -3,30 +3,38 @@
   "version": "1.0.0",
   "main": "server.js",
   "scripts": {
-    "test": "echo \"Error: no test specified\" && exit 1",
+    "test": "jest --runInBand",
     "start": "node server.js",
     "dev": "nodemon server.js",
     "build": "echo 'Backend build complete: No compilation required for Node.js CommonJS' && exit 0"
   },
   "keywords": [
-    "Customer-Management",
+    "task-management",
     "express-api",
-    "swagger",
+    "jwt",
+    "mongodb",
     "socket-io"
   ],
   "author": "Rupesh KLR",
   "license": "ISC",
   "dependencies": {
+    "bcryptjs": "^2.4.3",
     "cookie-parser": "^1.4.7",
     "cors": "^2.8.6",
     "dotenv": "^17.4.2",
     "express": "^5.2.1",
     "helmet": "^8.1.0",
+    "jsonwebtoken": "^9.0.2",
+    "mongoose": "^8.16.4",
     "nodemon": "^3.1.14",
     "socket.io": "^4.8.3",
     "swagger-jsdoc": "^6.2.8",
     "swagger-ui-express": "^5.0.1",
     "uuid": "^14.0.0"
   },
-  "description": "Customer management is the strategic practice of nurturing client relationships, maximizing retention, and enhancing profitability through tailored services and effective communication. It involves leveraging CRM tools for data analysis, supporting customer journeys, and resolving issues across sales, marketing, and support departments"
+  "description": "Task management API with JWT authentication, MongoDB persistence, and protected CRUD routes for user tasks",
+  "devDependencies": {
+    "jest": "^29.7.0",
+    "supertest": "^6.3.4"
+  }
 }

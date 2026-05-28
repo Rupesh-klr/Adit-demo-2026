@@ -1,70 +1,101 @@
+/**
+ * Task Management API Server
+ *
+ * Features:
+ *  - User authentication using JWT (access + refresh tokens)
+ *  - REST API development with Express
+ *  - CRUD APIs for tasks (create, read, update, delete)
+ *  - Protected routes (middleware verifies JWT)
+ *  - Proper error handling and JSON responses
+ *  - Real-time events via Socket.io for task create/update/delete
+ *
+ * Database:
+ *  - MongoDB (configure connection via `MONGO_URL_TALEEO_LMS` in .env)
+ *
+ * Environment variables (see _env_sample):
+ *  - PORT, ALLOWED_ORIGIN, DB_TYPE, ENABLE_GUEST_LOGIN
+ *  - JWT_SECRET, REFRESH_TOKEN_SECRET
+ *  - MONGO_URL_TALEEO_LMS
+ *
+ * Routes (high-level):
+ *  - POST /api/auth/signup
+ *  - POST /api/auth/login
+ *  - POST /api/auth/guest-login
+ *  - POST /api/auth/refresh
+ *  - POST /api/auth/logout
+ *  - GET  /api/auth/me
+ *  - GET  /api/tasks
+ *  - POST /api/tasks
+ *  - GET  /api/tasks/:id
+ *  - PUT  /api/tasks/:id
+ *  - PATCH/POST /api/tasks/:id/status
+ *  - DELETE /api/tasks/:id
+ *  - GET  /api/tasks/summary
+ *
+ * Notes:
+ *  - Tasks are scoped per authenticated user.
+ *  - Use the `status` query parameter to filter by `pending`, `completed`, or `all`.
+ */
 require('dotenv').config();
+
 const express = require('express');
 const cors = require('cors');
 const cookieParser = require('cookie-parser');
-const { v4: uuidv4 } = require('uuid');
-const fs = require('fs');
-const path = require('path');
+const helmet = require('helmet');
+const mongoose = require('mongoose');
+const bcrypt = require('bcryptjs');
+const jwt = require('jsonwebtoken');
 const http = require('http');
 const { Server } = require('socket.io');
 const swaggerJsDoc = require('swagger-jsdoc');
 const swaggerUi = require('swagger-ui-express');
-const app = express();
-const PORT = process.env.PORT || 5000;
 
-const swaggerOptions = {
+const app = express();
+const server = http.createServer(app);
+const PORT = Number(process.env.PORT) || 5000;
+const ALLOWED_ORIGINS = (process.env.ALLOWED_ORIGIN || 'http://localhost:5173')
+  .split(',')
+  .map(origin => origin.trim())
+  .filter(Boolean);
+const DB_TYPE = String(process.env.DB_TYPE || '1');
+const USE_MONGO = DB_TYPE === '1';
+const MONGO_URI = process.env.MONGO_URL_TALEEO_LMS || process.env.MONGO_URL || '';
+const JWT_SECRET = process.env.JWT_SECRET || 'development-access-secret';
+const REFRESH_TOKEN_SECRET = process.env.REFRESH_TOKEN_SECRET || 'development-refresh-secret';
+const ENABLE_GUEST_LOGIN = String(process.env.ENABLE_GUEST_LOGIN || 'false').toLowerCase() === 'true';
+const isProduction = process.env.NODE_ENV === 'production';
+
+const swaggerDocs = swaggerJsDoc({
   definition: {
     openapi: '3.0.0',
     info: {
-      title: 'HR Management API',
+      title: 'Task Management API',
       version: '1.0.0',
-      description: 'API documentation for the Customer/Employee Registry',
-      contact: {
-        name: 'Rupesh KLR',
-      },
+      description: 'Authentication and task management API',
     },
-    servers: [
-      {
-        url: `http://localhost:${PORT}`,
-        description: 'Local server',
-      },
-    ],
+    servers: [{ url: `http://localhost:${PORT}` }],
   },
-  apis: ['./server.js'],
+  apis: [__filename],
+});
+
+const cookieOptions = {
+  httpOnly: true,
+  secure: isProduction,
+  sameSite: isProduction ? 'none' : 'lax',
+  path: '/',
 };
 
-const swaggerDocs = swaggerJsDoc(swaggerOptions);
-const originString = process.env.ALLOWED_ORIGIN || 'http://localhost:5173';
-const ALLOWED_ORIGINS = originString.split(',').map(origin => origin.trim());
-console.log(`Allowed Origins: ${ALLOWED_ORIGINS.join(', ')}`);
-const BACKUP_PATH = path.join(__dirname, 'customers-backup.json');
-const LOG_FILE = path.join(__dirname, 'server.log');
-
-let customers = [];
-
-// Load backup if exists
-if (fs.existsSync(BACKUP_PATH)) {
-  try {
-    customers = JSON.parse(fs.readFileSync(BACKUP_PATH, 'utf-8'));
-  } catch (e) {
-    customers = [];
-  }
-}
-
-// Backup every hour
-setInterval(() => {
-  fs.writeFileSync(BACKUP_PATH, JSON.stringify(customers, null, 2));
-}, 5 * 60 * 1000);
-
-app.use(cors({
-  origin: ALLOWED_ORIGINS,
-  credentials: true,
-}));
-app.use(express.json());
+app.use(helmet());
+app.use(
+  cors({
+    origin: ALLOWED_ORIGINS,
+    credentials: true,
+  })
+);
+app.use(express.json({ limit: '1mb' }));
 app.use(cookieParser());
+app.use('/api-docs', swaggerUi.serve, swaggerUi.setup(swaggerDocs));
 
-// Socket.io setup
-const server = http.createServer(app);
 const io = new Server(server, {
   cors: {
     origin: ALLOWED_ORIGINS,
@@ -72,417 +103,95 @@ const io = new Server(server, {
   },
 });
 
-io.on('connection', (socket) => {
+io.on('connection', socket => {
   socket.emit('connected', { message: 'Socket connected' });
 });
-app.use('/api-docs', swaggerUi.serve, swaggerUi.setup(swaggerDocs));
 
-// GET /customers (with pagination, sorting, and suspicious activity logging)
+// expose io to controllers via app
+app.set('io', io);
 
-/**
- * @swagger
- * /customers:
- *   get:
- *     summary: Retrieve a list of customers
- *     parameters:
- *       - in: query
- *         name: page
- *         schema:
- *           type: integer
- *         description: Page number
- *       - in: query
- *         name: limit
- *         schema:
- *           type: integer
- *         description: Number of records per page
- *       - in: query
- *         name: sort
- *         schema:
- *           type: string
- *         description: Sort by field (name, email, phone)
- *       - in: query
- *         name: order
- *         schema:
- *           type: string
- *         description: Sort order (asc, desc)
- *       - in: query
- *         name: search
- *         schema:
- *           type: string
- *         description: Search term
- *       - in: query
- *         name: filterBy
- *         schema:
- *           type: string
- *         description: Filter by field (name, email, phone, global)
- *     responses:
- *       200:
- *         description: A list of customers
- *         content:
- *           application/json:
- *             schema:
- *               type: object
- *               properties:
- *                 data:
- *                   type: array
- *                   items:
- *                     $ref: '#/components/schemas/Customer'
- *                 meta:
- *                   type: object
- *                   properties:
- *                     totalRecords:
- *                       type: integer
- *                     totalPages:
- *                       type: integer
- *                     currentPage:
- *                       type: integer
- *                     limit:
- *                       type: integer
- *                 message:
- *                   type: string
- */
-app.get('/customers', (req, res) => {
-  try {
-    let { page = 1, limit = 10, sort = 'name', order = 'asc', search = '', filterBy = 'global' } = req.query;
-    
-    let requestedPage = parseInt(page) || 1;
-    let requestedLimit = parseInt(limit) || 10;
-    let warningMessage = null;
+// Models, config and routes (modularized)
+const User = require('./models/User');
+const Task = require('./models/Task');
+const { connectDatabase: connectDB } = require('./config/db');
+const { authenticate: authenticateFactory, authorize } = require('./middleware/auth');
+const authRoutes = require('./routes/auth');
+const tasksRoutes = require('./routes/tasks');
 
-    // --- Always start with the FULL customer list ---
-    let filteredResults = [...customers]; 
+// mount routes
+const authenticate = authenticateFactory(JWT_SECRET);
+app.use('/api/auth', authRoutes({ JWT_SECRET, REFRESH_TOKEN_SECRET, cookieOptions, ENABLE_GUEST_LOGIN }, authenticate));
+app.use('/api/tasks', tasksRoutes(authenticate));
 
-    // --- Filter the FULL list based on Search ---
-    if (search) {
-      const searchTerm = search.toString().toLowerCase().trim();
-      // We filter the original 'customers' array to find EVERY match in the system
-      filteredResults = customers.filter(customer => {
-        const name = (customer.name || '').toLowerCase();
-        const email = (customer.email || '').toLowerCase();
-        const phone = (customer.phone || '').toString();
+// use the connectDB helper internally
+const connectDatabase = async () => {
+  if (!USE_MONGO) throw new Error('DB_TYPE is not set to MongoDB mode. Set DB_TYPE=1 to enable the Mongo backend.');
+  if (!MONGO_URI) throw new Error('MONGO_URL_TALEEO_LMS is missing from the environment.');
+  await connectDB(MONGO_URI);
+};
 
-        if (filterBy === 'name') return name.includes(searchTerm);
-        if (filterBy === 'email') return email.includes(searchTerm);
-        if (filterBy === 'phone') return phone.includes(searchTerm);
-        
-        // Global wildcard looks across everything in the main table
-        return name.includes(searchTerm) || email.includes(searchTerm) || phone.includes(searchTerm);
-      });
-    }
-    if (['name', 'email', 'phone'].includes(sort)) {
-      filteredResults.sort((a, b) => {
-        const valA = (a[sort] || '').toString().toLowerCase();
-        const valB = (b[sort] || '').toString().toLowerCase();
-        if (valA < valB) return order === 'asc' ? -1 : 1;
-        if (valA > valB) return order === 'asc' ? 1 : -1;
-        return 0;
-      });
-    }
-    const totalRecords = filteredResults.length; // Important: This is the count of matches, not the whole table
-    const totalPages = Math.max(1, Math.ceil(totalRecords / requestedLimit));
-    if (requestedPage > totalPages) requestedPage = totalPages;
-    if (requestedPage < 1) requestedPage = 1;
+const asyncHandler = fn => (req, res, next) => Promise.resolve(fn(req, res, next)).catch(next);
 
-    // ---  Finally, SLICE the results for the current page ---
-    const start = (requestedPage - 1) * requestedLimit;
-    const pagedData = filteredResults.slice(start, start + requestedLimit);
 
-    // Final Response
-    res.status(200).json({ 
-      data: pagedData, 
-      meta: { 
-        totalRecords, 
-        totalPages, 
-        currentPage: requestedPage, 
-        limit: requestedLimit 
-      }, 
-      message: warningMessage 
-    });
+const normalizeStatus = value => {
+  if (!value) return null;
+  const normalized = String(value).toLowerCase();
+  if (normalized === 'pending' || normalized === 'completed') return normalized;
+  return null;
+};
 
-  } catch (error) {
-    console.error(`[${new Date().toISOString()}] Error:`, error.message);
-    res.status(500).json({ error: 'Internal Server Error' });
-  }
+const parsePage = value => Math.max(1, Number.parseInt(value, 10) || 1);
+const parseLimit = value => Math.min(100, Math.max(1, Number.parseInt(value, 10) || 10));
+
+app.get('/api/health', asyncHandler(async (req, res) => {
+  const stateName = mongoose.connection.readyState === 1 ? 'connected' : 'disconnected';
+  res.json({
+    status: 'ok',
+    db: stateName,
+    mode: USE_MONGO ? 'mongo' : 'disabled',
+    guestLoginEnabled: ENABLE_GUEST_LOGIN,
+  });
+}));
+
+
+
+app.get('/', (req, res) => {
+  res.json({
+    message: 'Task Management API is running',
+    docs: '/api-docs',
+    health: '/api/health',
+  });
 });
 
-// POST /customers with Exception Handling
-
-/**
- * @swagger
- * /customers:
- *   post:
- *     summary: Add a new customer
- *     requestBody:
- *       required: true
- *       content:
- *         application/json:
- *           schema:
- *             type: object
- *             properties:
- *               name:
- *                 type: string
- *               email:
- *                 type: string
- *               phone:
- *                 type: string
- *     responses:
- *       201:
- *         description: Created
- *         content:
- *           application/json:
- *             schema:
- *               $ref: '#/components/schemas/Customer'
- *       409:
- *         description: Conflict (Email or Phone exists)
- */
-/**
- * @swagger
- * components:
- *   schemas:
- *     Customer:
- *       type: object
- *       properties:
- *         id:
- *           type: string
- *         name:
- *           type: string
- *         email:
- *           type: string
- *         phone:
- *           type: string
- */
-app.post('/customers', (req, res) => {
-  try {
-    const { name, email, phone } = req.body;
-    if (!name || !email || !phone) {
-      return res.status(400).json({ error: 'Missing fields: name, email, and phone are required.' });
-    }
-    // Name validation: at least 2 characters
-    if (typeof name !== 'string' || name.trim().length < 2) {
-      return res.status(400).json({ error: 'Name must be at least 2 characters long.' });
-    }
-    // Email validation: simple regex for format
-    const emailRegex = /^[\w-.]+@[\w-]+\.[a-zA-Z]{2,}$/;
-    if (!emailRegex.test(email.trim())) {
-      return res.status(400).json({ error: 'Invalid email format.' });
-    }
-    // Phone validation: allow only digits, optional +, min 7, max 15 digits
-    const phoneRegex = /^\+?\d{7,15}$/;
-    if (!phoneRegex.test(phone.trim())) {
-      return res.status(400).json({ error: 'Invalid phone number format. Use only digits, optional +, 7-15 digits.' });
-    }
-    // . Individual Uniqueness Checks
-    const emailExists = customers.some(c => c.email.toLowerCase() === email.toLowerCase().trim());
-    if (emailExists) {
-      return res.status(409).json({ error: 'Email already exists. Please use a different email address.' });
-    }
-    // const phoneExists = customers.some(c => c.phone === phone.trim());
-    // if (phoneExists) {
-    //   return res.status(409).json({ error: 'Phone number already exists. Please use a different phone number.' });
-    // }
-
-    const id = uuidv4();
-    const customer = { 
-      id, 
-      name: name.trim(), 
-      email: email.toLowerCase().trim(), 
-      phone: phone.trim() 
-    };
-    customers.push(customer);
-    try {
-      io.emit('customer_added', customer);
-    } catch (socketErr) {
-      console.error("Socket emission failed:", socketErr);
-    }
-    res.status(201).json(customer);
-
-  } catch (error) {
-    console.error(`[${new Date().toISOString()}] ERROR in POST /customers:`, error.message);
-    
-    res.status(500).json({ 
-      error: 'Internal Server Error', 
-      message: 'Something went wrong while saving the customer. Please try again later.' 
-    });
-  }
+app.use((req, res) => {
+  res.status(404).json({ error: 'Not Found', message: 'Route does not exist.' });
 });
 
-// DELETE /customers/:id
-
-/**
- * @swagger
- * /customers/{id}:
- *   delete:
- *     summary: Remove a customer by ID
- *     parameters:
- *       - in: path
- *         name: id
- *         required: true
- *         schema:
- *           type: string
- *         description: The unique UUID of the customer
- *     responses:
- *       200:
- *         description: Customer deleted successfully
- *         content:
- *           application/json:
- *             schema:
- *               type: object
- *               properties:
- *                 message:
- *                   type: string
- *                 deletedCustomer:
- *                   $ref: '#/components/schemas/Customer'
- *       404:
- *         description: Customer not found
- *         content:
- *           application/json:
- *             schema:
- *               type: object
- *               properties:
- *                 error:
- *                   type: string
- *                 message:
- *                   type: string
- *       500:
- *         description: Internal server error
- *         content:
- *           application/json:
- *             schema:
- *               type: object
- *               properties:
- *                 error:
- *                   type: string
- *                 message:
- *                   type: string
- */
-app.delete('/customers/:id', (req, res) => {
-  try {
-    const { id } = req.params;
-    if (!id) {
-      return res.status(400).json({ error: 'Customer ID is required.' });
-    }
-    const idx = customers.findIndex(c => c.id === id);
-    if (idx === -1) {
-      return res.status(404).json({ 
-        error: 'Not Found', 
-        message: `Customer with ID ${id} does not exist.` 
-      });
-    }
-    const [deleted] = customers.splice(idx, 1);
-    try {
-      io.emit('customer_deleted', { id: deleted.id });
-    } catch (socketErr) {
-      console.error("Socket emission failed during deletion:", socketErr);
-    }
-    res.status(200).json({
-      message: 'Customer deleted successfully',
-      deletedCustomer: deleted
-    });
-
-  } catch (error) {
-    console.error(`[${new Date().toISOString()}] ERROR in DELETE /customers/${req.params.id}:`, error.message);
-    
-    res.status(500).json({ 
-      error: 'Internal Server Error', 
-      message: 'An unexpected error occurred while deleting the record.' 
-    });
-  }
+app.use((error, req, res, next) => {
+  console.error(error);
+  res.status(error.status || 500).json({
+    error: error.name || 'Internal Server Error',
+    message: error.message || 'Something went wrong on the server.',
+  });
 });
 
-const logger = (message, level = 'INFO') => {
-  const timestamp = new Date().toISOString();
-  const formattedMsg = `[${timestamp}] [${level}] ${message}\n`;
-  console.log(formattedMsg.trim());
-  fs.appendFile(LOG_FILE, formattedMsg, (err) => {
-    if (err) console.error('Failed to write to log file:', err);
+const start = async () => {
+  await connectDatabase();
+  return new Promise((resolve) => {
+    server.listen(PORT, () => {
+      console.log(`Server running on port ${PORT}`);
+      resolve();
+    });
   });
 };
-const logDir = path.join(process.cwd(), 'logs');
-const logFileName = 'app.log';
-const logFilePath = path.join(logDir, logFileName);
-if (!fs.existsSync(logDir)) {
-    fs.mkdirSync(logDir, { recursive: true });
+
+// Export app and start for testing and external runners
+module.exports = { app, server, start, connectDatabase, User, Task, authorize };
+
+// If run directly, start the server
+if (require.main === module) {
+  start().catch(error => {
+    console.error('Failed to start server:', error);
+    process.exit(1);
+  });
 }
-if (!fs.existsSync(logDir)) fs.mkdirSync(logDir);
-const formatLog = (level, args) => {
-    const timestamp = new Date().toISOString();
-    const message = args.map(arg => typeof arg === 'object' ? JSON.stringify(arg) : arg).join(' ');
-    return `[${timestamp}] [${level}] ${message}\n`;
-};
-const logStream = fs.createWriteStream(logFilePath, { flags: 'a' });
-console.log = (...args) => logStream.write(formatLog('INFO', args));
-console.error = (...args) => logStream.write(formatLog('ERROR', args));
-console.warn = (...args) => logStream.write(formatLog('WARN', args));
-app.get('/api/health', (req, res) => {
-    console.log(`Logging to ${req.path} Log file not found at ${logFilePath}`);
-    res.json({ status: 'ok', NODE_ENV: process.env.NODE_ENV || 'development' });
-});
-function tailFile(filePath, lineCount) {
-    const STATS = fs.statSync(filePath);
-    const FILE_SIZE = STATS.size;
-    const BUFFER_SIZE = 1024 * 64; // Read 64KB chunks
-    let fd = fs.openSync(filePath, 'r');
-    let lines = '';
-    let cursor = FILE_SIZE;
-    while (lines.split('\n').length <= lineCount && cursor > 0) {
-        let length = Math.min(BUFFER_SIZE, cursor);
-        cursor -= length;
-        let buffer = Buffer.alloc(length);
-        fs.readSync(fd, buffer, 0, length, cursor);
-        lines = buffer.toString('utf8') + lines;
-    }
-
-    fs.closeSync(fd);
-    return lines.split('\n').slice(-lineCount).join('\n');
-}
-app.get('/lastlog', (req, res) => {
-
-    console.log(`Logging to ${req.path}`);
-    const offset = parseInt(req.query.offset) || 500;
-
-    if (!fs.existsSync(logFilePath)) {
-        fs.mkdirSync(logDir);
-        const logStream_NEW = fs.createWriteStream(logFilePath, { flags: 'a' });
-        console.log = (...args) => logStream_NEW.write(formatLog('INFO', args));
-        console.error = (...args) => logStream_NEW.write(formatLog('ERROR', args));
-        console.warn = (...args) => logStream_NEW.write(formatLog('WARN', args));
-        return res.status(404).send(`<h1> Log file not found at ${logFilePath}; No log file found yet. under main directory.</h1>`);
-    }
-
-    try {
-        const lastLines = tailFile(logFilePath, offset);
-
-        res.send(`
-            <html>
-            <head>
-                <title>Log Viewer</title>
-                <style>
-                    body { font-family: monospace; background: #1e1e1e; color: #d4d4d4; padding: 20px; }
-                    pre { background: #000; padding: 15px; border-radius: 5px; overflow-x: auto; white-space: pre-wrap; }
-                    .controls { margin-bottom: 20px; position: sticky; top: 0; background: #1e1e1e; padding: 10px; }
-                    button { padding: 10px 20px; cursor: pointer; background: #007bff; color: white; border: none; border-radius: 3-px; }
-                    button:hover { background: #0056b3; }
-                </style>
-            </head>
-                <body style="background:#121212; color:#00ff00; font-family:monospace; padding:20px;">
-                <h2>Last ${offset + 500} Log Entries:</h2>
-                    <div style="position:sticky; top:0; background:#222; padding:10px; border-bottom:1px solid #444;">
-                        <button onclick="location.reload()">🔄 Refresh (Last 500)</button>
-                        <button onclick="location.href='?offset=${offset + 500}'">Load More (Older)⬅️ Previous 500 Lines</button>
-                    </div>
-                    <pre style="white-space: pre-wrap;">${lastLines}</pre>
-                     <script>
-                    // Auto-scroll to bottom of logs on load
-                    window.scrollTo(0, document.body.scrollHeight);
-                </script>
-                </body>
-            </html>
-        `);
-    } catch (err) {
-        res.status(500).send("Error reading logs: " + err.message);
-    }
-});
-server.listen(PORT, () => {
-  console.log(`Server running on port ${PORT}`);
-  logger(`Server started on port ${PORT}`); 
-});

@@ -2,3 +2,15 @@
 dumpy*.*
 temp*.*
 *.log
+node_modules/
+build/
+dist/
+.env
+.temp*
+.dumpy*
+temp*
+dumpy*
+temp*.*
+dumpy*.*
+*.log
+logs/*.log
