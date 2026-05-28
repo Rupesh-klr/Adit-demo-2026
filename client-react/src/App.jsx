@@ -1,22 +1,79 @@
 
-
-import CustomerForm from './components/CustomerForm';
-import CustomerTable from './components/CustomerTable';
-import { useState } from 'react';
+import { useMemo } from 'react';
+import { BrowserRouter, Navigate, Route, Routes, useNavigate } from 'react-router-dom';
+import { motion } from 'framer-motion';
+import AuthPage from './components/AuthPage';
+import TaskDashboard from './components/TaskDashboard';
+import { useSessionManager } from './hooks/useSessionManager';
 import './App.css';
 
-function App() {
-  const [refresh, setRefresh] = useState(false);
+function LoadingScreen() {
+  return (
+    <div className="app-loading">
+      <motion.div
+        className="loading-orb"
+        animate={{ scale: [1, 1.18, 1], opacity: [0.75, 1, 0.75] }}
+        transition={{ duration: 1.8, repeat: Infinity, ease: 'easeInOut' }}
+      />
+      <div>
+        <h1>Task studio</h1>
+        <p>Restoring your session...</p>
+      </div>
+    </div>
+  );
+}
+
+function AppRouter() {
+  const navigate = useNavigate();
+  const session = useSessionManager();
+
+  const authActions = useMemo(() => ({
+    login: async (credentials) => {
+      await session.login(credentials);
+      navigate('/app', { replace: true });
+    },
+    signup: async (payload) => {
+      await session.signup(payload);
+      navigate('/app', { replace: true });
+    },
+    logout: async () => {
+      await session.logout();
+      navigate('/login', { replace: true });
+    },
+  }), [navigate, session]);
+
+  if (session.bootstrapping) {
+    return <LoadingScreen />;
+  }
 
   return (
-    <div className="min-h-screen bg-gray-50 flex flex-col items-center px-2 py-6">
-      <main className="w-full max-w-[920px] bg-white rounded-lg shadow-lg p-6 md:p-10 flex flex-col gap-8">
-        <h1 className="text-red-500 text-3xl md:text-5xl font-extrabold text-center mb-2">Customer Management</h1>
-        <CustomerForm onCustomerAdded={() => setRefresh((v) => !v)} />
-        
-        <CustomerTable key={refresh} onRefreshButtonClicked={() => setRefresh((v) => !v)}/>
-      </main>
-    </div>
+    <Routes>
+      <Route
+        path="/"
+        element={<Navigate to={session.isAuthenticated ? '/app' : '/login'} replace />}
+      />
+      <Route
+        path="/login"
+        element={session.isAuthenticated ? <Navigate to="/app" replace /> : <AuthPage mode="login" onLogin={authActions.login} onSignup={authActions.signup} />}
+      />
+      <Route
+        path="/signup"
+        element={session.isAuthenticated ? <Navigate to="/app" replace /> : <AuthPage mode="signup" onLogin={authActions.login} onSignup={authActions.signup} />}
+      />
+      <Route
+        path="/app"
+        element={session.isAuthenticated ? <TaskDashboard user={session.user} onLogout={authActions.logout} /> : <Navigate to="/login" replace />}
+      />
+      <Route path="*" element={<Navigate to="/" replace />} />
+    </Routes>
+  );
+}
+
+function App() {
+  return (
+    <BrowserRouter>
+      <AppRouter />
+    </BrowserRouter>
   );
 }
 
