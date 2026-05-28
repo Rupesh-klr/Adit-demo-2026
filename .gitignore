@@ -1,0 +1,4 @@
+# Ignore dumpy and temp files in root
+dumpy*.*
+temp*.*
+*.log
