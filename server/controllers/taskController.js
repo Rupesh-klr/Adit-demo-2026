@@ -32,11 +32,15 @@ const list = () => async (req, res) => {
   const sortFields = new Set(['createdAt', 'updatedAt', 'title', 'dueDate', 'status', 'priority']);
   const safeSortBy = sortFields.has(String(sortBy)) ? String(sortBy) : 'createdAt';
   const sortDirection = String(order).toLowerCase() === 'asc' ? 1 : -1;
-  const [tasks, totalRecords] = await Promise.all([
-    Task.find(filter).sort({ [safeSortBy]: sortDirection }).skip((pageNumber - 1) * limitNumber).limit(limitNumber).populate('createdBy', 'name email role'),
-    Task.countDocuments(filter),
-  ]);
-  res.json({ data: tasks.map(t => ({ id: t._id.toString(), title: t.title, description: t.description, status: t.status, priority: t.priority, dueDate: t.dueDate, completedAt: t.completedAt, createdAt: t.createdAt, updatedAt: t.updatedAt, createdBy: t.createdBy })), meta: { totalRecords, totalPages: Math.max(1, Math.ceil(totalRecords / limitNumber)), currentPage: pageNumber, limit: limitNumber } });
+  const totalRecords = await Task.countDocuments(filter);
+  const totalPages = Math.max(1, Math.ceil(totalRecords / limitNumber));
+  const currentPage = Math.min(pageNumber, totalPages);
+  const tasks = await Task.find(filter)
+    .sort({ [safeSortBy]: sortDirection })
+    .skip((currentPage - 1) * limitNumber)
+    .limit(limitNumber)
+    .populate('createdBy', 'name email role');
+  res.json({ data: tasks.map(t => ({ id: t._id.toString(), title: t.title, description: t.description, status: t.status, priority: t.priority, dueDate: t.dueDate, completedAt: t.completedAt, createdAt: t.createdAt, updatedAt: t.updatedAt, createdBy: t.createdBy })), meta: { totalRecords, totalPages, currentPage, limit: limitNumber } });
 };
 
 const create = () => async (req, res) => {
