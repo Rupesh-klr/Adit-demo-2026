@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
-import { AnimatePresence, motion } from 'framer-motion';
-import { FiCheckCircle, FiClock, FiFilter, FiLogOut, FiPlus, FiSearch, FiTrash2, FiEdit2 } from 'react-icons/fi';
+import { motion } from 'framer-motion';
+import { FiCheckCircle, FiClock, FiFilter, FiLogOut, FiMoon, FiPlus, FiSearch, FiSun, FiTrash2, FiEdit2 } from 'react-icons/fi';
 import { requestJson } from '../services/api';
 
 const initialForm = {
@@ -32,10 +32,12 @@ function SummaryCard({ label, value, tone }) {
   );
 }
 
-export default function TaskDashboard({ user, onLogout }) {
+export default function TaskDashboard({ user, onLogout, theme, onToggleTheme }) {
   const [tasks, setTasks] = useState([]);
   const [summary, setSummary] = useState({ total: 0, pending: 0, completed: 0 });
   const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
+  const [hasLoaded, setHasLoaded] = useState(false);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
   const [search, setSearch] = useState('');
@@ -50,15 +52,19 @@ export default function TaskDashboard({ user, onLogout }) {
     return `${filter[0].toUpperCase()}${filter.slice(1)} tasks`;
   }, [filter]);
 
-  const loadData = async () => {
-    setLoading(true);
+  const loadData = async ({ page: nextPage = page, search: nextSearch = search, filter: nextFilter = filter, silent = false } = {}) => {
+    if (!hasLoaded && !silent) {
+      setLoading(true);
+    } else if (!silent) {
+      setRefreshing(true);
+    }
     setError('');
 
     try {
       const params = new URLSearchParams({
-        status: filter,
-        search,
-        page: String(page),
+        status: nextFilter,
+        search: nextSearch,
+        page: String(nextPage),
         limit: String(meta.limit),
       });
 
@@ -70,10 +76,12 @@ export default function TaskDashboard({ user, onLogout }) {
       setTasks(taskResult.data || []);
       setMeta((current) => ({ ...current, ...(taskResult.meta || {}) }));
       setSummary(summaryResult || { total: 0, pending: 0, completed: 0 });
+      setHasLoaded(true);
     } catch (loadError) {
       setError(loadError.message || 'Failed to load tasks.');
     } finally {
       setLoading(false);
+      setRefreshing(false);
     }
   };
 
@@ -85,7 +93,7 @@ export default function TaskDashboard({ user, onLogout }) {
   const handleSearchSubmit = (event) => {
     event.preventDefault();
     setPage(1);
-    loadData();
+    loadData({ page: 1 });
   };
 
   const resetForm = () => {
@@ -125,7 +133,7 @@ export default function TaskDashboard({ user, onLogout }) {
 
       resetForm();
       setPage(1);
-      await loadData();
+      await loadData({ page: 1 });
     } catch (submitError) {
       setError(submitError.message || 'Unable to save task.');
     } finally {
@@ -150,7 +158,7 @@ export default function TaskDashboard({ user, onLogout }) {
         method: 'PATCH',
         body: { status: task.status === 'completed' ? 'pending' : 'completed' },
       });
-      await loadData();
+      await loadData({ silent: false });
     } catch (statusError) {
       setError(statusError.message || 'Unable to update task status.');
     }
@@ -162,7 +170,7 @@ export default function TaskDashboard({ user, onLogout }) {
 
     try {
       await requestJson(`/api/tasks/${taskId}`, { method: 'DELETE' });
-      await loadData();
+      await loadData({ silent: false });
     } catch (deleteError) {
       setError(deleteError.message || 'Unable to delete task.');
     }
@@ -180,6 +188,10 @@ export default function TaskDashboard({ user, onLogout }) {
         </div>
 
         <div className="topbar-actions">
+          <button className="theme-toggle" type="button" onClick={onToggleTheme} aria-label="Toggle theme">
+            {theme === 'dark' ? <FiSun /> : <FiMoon />}
+            <span>{theme === 'dark' ? 'Light mode' : 'Dark mode'}</span>
+          </button>
           <div className="user-chip">
             <span>{user?.name || user?.email || 'Member'}</span>
             <small>{user?.role || 'user'}</small>
@@ -271,7 +283,10 @@ export default function TaskDashboard({ user, onLogout }) {
               <p className="eyebrow">Task board</p>
               <h2>{filteredLabel}</h2>
             </div>
-            <span className="board-count">{meta.totalRecords || tasks.length} items</span>
+            <div className="board-header-meta">
+              {refreshing ? <span className="board-status">Updating</span> : null}
+              <span className="board-count">{meta.totalRecords || tasks.length} items</span>
+            </div>
           </div>
 
           <form className="search-row" onSubmit={handleSearchSubmit}>
@@ -306,65 +321,60 @@ export default function TaskDashboard({ user, onLogout }) {
           </div>
 
           {loading ? <div className="loading-inline">Loading tasks...</div> : null}
-
-          <AnimatePresence mode="wait">
-            {!loading && tasks.length ? (
-              <motion.div
-                key={`${filter}-${search}-${page}`}
-                className="task-list"
-                initial={{ opacity: 0 }}
-                animate={{ opacity: 1 }}
-                exit={{ opacity: 0 }}
-                transition={{ duration: 0.2 }}
-              >
-                {tasks.map((task, index) => (
-                  <motion.article
-                    key={task.id}
-                    className="task-card"
-                    initial={{ opacity: 0, y: 12 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    transition={{ delay: index * 0.03 }}
-                  >
-                    <div className="task-card-head">
-                      <div>
-                        <h3>{task.title}</h3>
-                        <p>{task.description || 'No description added yet.'}</p>
-                      </div>
-
-                      <Pill tone={task.status === 'completed' ? 'emerald' : 'amber'}>
-                        {task.status}
-                      </Pill>
+          {!loading && tasks.length ? (
+            <motion.div
+              className="task-list"
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              transition={{ duration: 0.2 }}
+            >
+              {tasks.map((task, index) => (
+                <motion.article
+                  key={task.id}
+                  className="task-card"
+                  initial={{ opacity: 0, y: 12 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  transition={{ delay: index * 0.03 }}
+                >
+                  <div className="task-card-head">
+                    <div>
+                      <h3>{task.title}</h3>
+                      <p>{task.description || 'No description added yet.'}</p>
                     </div>
 
-                    <div className="task-meta">
-                      <Pill tone={task.priority === 'high' ? 'red' : task.priority === 'medium' ? 'blue' : 'neutral'}>
-                        Priority: {task.priority}
-                      </Pill>
-                      <span>
-                        <FiClock />
-                        {formatDate(task.dueDate)}
-                      </span>
-                    </div>
+                    <Pill tone={task.status === 'completed' ? 'emerald' : 'amber'}>
+                      {task.status}
+                    </Pill>
+                  </div>
 
-                    <div className="task-actions">
-                      <button className="ghost-button compact" type="button" onClick={() => handleEdit(task)}>
-                        <FiEdit2 />
-                        Edit
-                      </button>
-                      <button className="ghost-button compact" type="button" onClick={() => handleToggleStatus(task)}>
-                        <FiCheckCircle />
-                        {task.status === 'completed' ? 'Mark pending' : 'Complete'}
-                      </button>
-                      <button className="danger-button compact" type="button" onClick={() => handleDelete(task.id)}>
-                        <FiTrash2 />
-                        Delete
-                      </button>
-                    </div>
-                  </motion.article>
-                ))}
-              </motion.div>
-            ) : null}
-          </AnimatePresence>
+                  <div className="task-meta">
+                    <Pill tone={task.priority === 'high' ? 'red' : task.priority === 'medium' ? 'blue' : 'neutral'}>
+                      Priority: {task.priority}
+                    </Pill>
+                    <span>
+                      <FiClock />
+                      {formatDate(task.dueDate)}
+                    </span>
+                  </div>
+
+                  <div className="task-actions">
+                    <button className="ghost-button compact" type="button" onClick={() => handleEdit(task)}>
+                      <FiEdit2 />
+                      Edit
+                    </button>
+                    <button className="ghost-button compact" type="button" onClick={() => handleToggleStatus(task)}>
+                      <FiCheckCircle />
+                      {task.status === 'completed' ? 'Mark pending' : 'Complete'}
+                    </button>
+                    <button className="danger-button compact" type="button" onClick={() => handleDelete(task.id)}>
+                      <FiTrash2 />
+                      Delete
+                    </button>
+                  </div>
+                </motion.article>
+              ))}
+            </motion.div>
+          ) : null}
 
           {!loading && !tasks.length ? <div className="empty-state">No tasks match the current view.</div> : null}
 

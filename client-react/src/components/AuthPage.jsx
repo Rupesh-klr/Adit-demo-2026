@@ -1,7 +1,7 @@
 import { useMemo, useState } from 'react';
 import { Link, useLocation } from 'react-router-dom';
 import { AnimatePresence, motion } from 'framer-motion';
-import { FiArrowRight, FiLock, FiMail, FiUser } from 'react-icons/fi';
+import { FiArrowRight, FiLock, FiMail, FiMoon, FiSun, FiUser } from 'react-icons/fi';
 
 const pageVariants = {
   hidden: { opacity: 0, y: 24 },
@@ -28,7 +28,7 @@ function Field({ label, icon, type = 'text', value, onChange, placeholder, requi
   );
 }
 
-export default function AuthPage({ mode, onLogin, onSignup }) {
+export default function AuthPage({ mode, onLogin, onSignup, theme, onToggleTheme }) {
   const location = useLocation();
   const isSignup = mode === 'signup';
   const [form, setForm] = useState({
@@ -97,6 +97,10 @@ export default function AuthPage({ mode, onLogin, onSignup }) {
         transition={{ duration: 0.45, ease: 'easeOut' }}
       >
         <div className="auth-copy">
+          <button className="theme-toggle" type="button" onClick={onToggleTheme} aria-label="Toggle theme">
+            {theme === 'dark' ? <FiSun /> : <FiMoon />}
+            <span>{theme === 'dark' ? 'Light mode' : 'Dark mode'}</span>
+          </button>
           <p className="eyebrow">Task management</p>
           <h1>{title}</h1>
           <p className="lead">
